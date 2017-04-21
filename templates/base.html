@@ -125,25 +125,24 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-1">
-                  Likes<br>
-                   {{blog.likes}}
+                    Likes<br> {{blog.likes}}
                 </div>
                 <div class="col-md-8">
                     <h4> {{blog.subject}} </h4> {{blog.content}}
-                    <br>
-                    Posted by {{blog.owner}}
+                    <br> Posted by {{blog.owner}} {% for comments in blog_comments %} {% if comments.blogID == blog.key().id() %}
+                    <div class="row">
+                        <div class="col-md-5">{{comments.comment}}
+                        </div>
 
-                    {% for comments in blog_comments %}
-                    {% if comments.blogID == blog.key().id() %}
-                    <br>
+                        <div class="col-md-2">by {{comments.owner}}
+                        </div>
+                        {% if comments.owner == user %}
+                        <a href=/deletecomment/{{ comments.key().id() }} /> Delete </a>
+                        <a href=/editcomment/{{ comments.key().id() }} /> Edit </a>
+                        {% endif %}
+                    </div>
 
-                    {{comments.comment}} by {{comments.owner}}
-                    {% if comments.owner == user %}
-                    <a href=/deletecomment/{{ comments.key().id() }} /> Delete </a>
-                      <a href=/editcomment/{{ comments.key().id() }} /> Edit </a>
-                    {% endif %}
-                    {% endif %}
-                    {% endfor %}
+                    <br> {% endif %} {% endfor %}
 
                 </div>
 
@@ -154,13 +153,10 @@
                     </button>
                     <button class="btn">
                       <a href=/edit/{{ blog.key().id() }} /> Edit </a>
-                    </button>
-                    {% endif %}
-                    {% if user != blog.owner %}
+                    </button> {% endif %} {% if user != blog.owner %}
                     <button class="btn btn-info">
                       <a href=/like/{{ blog.key().id() }} /> Like </a>
-                    </button>
-                  {% endif %}
+                    </button> {% endif %}
                 </div>
 
                 <div class="col-md-1">
