@@ -1,0 +1,178 @@
+<!DOCtype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <!-- Character decoding: https://tools.ietf.org/html/rfc3629-->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--responsiveness requires this configuration -->
+    <link href="https://fonts.googleapis.com/css?family=Lato:100,400" rel="stylesheet">
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <title> Dr. Shreeman's MutliUser Blog </title>
+    <link type="text/css" rel="stylesheet" href="/css/main.css" />
+</head>
+
+<body>
+    <div class="container">
+        <header class="row">
+            <div class="col-md-8">
+                <h1> Welcome to the Multi-User Blog Site!</h1>
+            </div>
+            {% if user %}
+            <div class="col-md-2">
+
+                <button class="btn">
+                <a href="/logout"> Logout {{user}} </a>
+</button>
+                <br>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-large btn-info">
+                <a href="/newpost"> Make a new post </a>
+              </button>
+            </div>
+            {% endif %}
+
+    </div>
+    </header>
+    </div>
+
+    {% if not user %}
+    <div>
+        <h2> User Login    </h2> Do not have account?
+        <button type="button" class="btn" data-toggle="modal" data-target="#register-Modal">Register</button>
+
+        <div class="error">
+            {{error}}
+        </div>
+        <form method="post" action="/login">
+            <label>
+      Please enter your username
+      <input type="text" name="username" value="{{username}}">
+    </label>
+            <br>
+            <label>
+      Please enter your password
+      <input type="password" name="password" value ="{{password}}">
+    </label>
+            <br>
+            <input type="submit">
+    </div>
+    </form>
+    <div class="container">
+
+        <div class="modal fade" id="register-Modal" role="dialog">
+            <div class="modal-dialog">
+
+                <!-- Modal content-->
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        <h1 class="modal-title">   Please register </h1>
+                    </div>
+                    <div class="modal-body">
+
+                        <form method="post" action="/">
+                            <label>
+                   Please enter your username
+                   <input type="text" name="username" value="{{username}}">      {{error_name}}
+                 </label>
+                            <br>
+                            <label>
+                   Please create a new password
+                   <input type="password" name="password" value ="{{password}}">     {{error_password}}
+                 </label>
+                            <br>
+                            <label>
+                   Please verify your new password
+                   <input type="password" name="verify" value="{{verify}}">
+                   {{error_verify}}
+                 </label>
+                            <br>
+                            <label>
+                   Please enter your email address (optional)
+                   <input type="text" name="email" value="{{email}}">
+                   {{error_email}}
+                 </label>
+                            <br>
+                            <input type="submit">
+                        </form>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-default" data-dismiss="modal"> Close </button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    {% endif %}
+
+    <div id="content">
+        {% block content %} {% endblock %}
+    </div>
+
+    {% if user %}
+    <div class="blogbody">
+        {% for blog in blogs %}
+        <br><br>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-1">
+                  Likes<br>
+                   {{blog.likes}}
+                </div>
+                <div class="col-md-8">
+                    <h4> {{blog.subject}} </h4> {{blog.content}}
+                    <br>
+                    Posted by {{blog.owner}}
+
+                    {% for comments in blog_comments %}
+                    {% if comments.blogID == blog.key().id() %}
+                    <br>
+
+                    {{comments.comment}} by {{comments.owner}}
+                    {% if comments.owner == user %}
+                    <a href=/deletecomment/{{ comments.key().id() }} /> Delete </a>
+                      <a href=/editcomment/{{ comments.key().id() }} /> Edit </a>
+                    {% endif %}
+                    {% endif %}
+                    {% endfor %}
+
+                </div>
+
+                <div class="col-md-1">
+                    {% if user == blog.owner %}
+                    <button class="btn btn-danger">
+                      <a href=/delete/{{ blog.key().id() }} /> Delete </a>
+                    </button>
+                    <button class="btn">
+                      <a href=/edit/{{ blog.key().id() }} /> Edit </a>
+                    </button>
+                    {% endif %}
+                    {% if user != blog.owner %}
+                    <button class="btn btn-info">
+                      <a href=/like/{{ blog.key().id() }} /> Like </a>
+                    </button>
+                  {% endif %}
+                </div>
+
+                <div class="col-md-1">
+                    <button class="btn">
+        <a href=/comment/{{ blog.key().id() }} /> Comment </a>
+      </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <script src="js/jquery-3.1.1.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+</body>
+
+</html>

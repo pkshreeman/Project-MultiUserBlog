@@ -1,0 +1,11 @@
+<h2> Welcome! {{username}} </h2>
+
+<div>
+  {% for uq in userquery %}
+  <h4>{{uq.user_name}}</h4>
+  {{uq.user_hashed_password}}<br>
+  {{uq.user_email}}<br>
+  <br>
+  <br>
+  {% endfor %}
+</div>

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+  <meta http-equiv="refresh" content="3;url=/" />
+</head>
+<h2>{{blog.subject}}</h2>
+
+{{blog.content}}<br>
+<span>
+{{blog.created}}<span>
+  Owner: {{blog.owner}}
+{% endblock %}

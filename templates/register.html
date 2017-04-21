@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if not user %}
+
+<h1> Please register </h1>
+    <form method="post" action="/">
+        <label>
+      Please enter your username
+      <input type="text" name="username" value="{{username}}">      {{error_name}}
+    </label>
+        <br>
+        <label>
+      Please create a new password
+      <input type="password" name="password" value ="{{password}}">     {{error_password}}
+    </label>
+    <br>
+        <label>
+      Please verify your new password
+      <input type="password" name="verify" value="{{verify}}">
+      {{error_verify}}
+    </label>
+        <br>
+        <label>
+      Please enter your email address (optional)
+      <input type="text" name="email" value="{{email}}">
+      {{error_email}}
+    </label>
+        <br>
+        <input type="submit">
+    </form>
+
+    {% endif %}
+{% endblock %}
