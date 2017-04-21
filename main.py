@@ -7,21 +7,23 @@ import hmac  # hasher with additional
 import random  # generate pseduo-random data
 import hashlib  # needed something with the salt
 from string import letters  # ABC's
-from google.appengine.ext import db
+# from google.appengine.ext import db # datastore for storing data
+from models import *
 
 # establishing the standard directory for jinja templating
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir),
                                autoescape=True)
-# regular expression checker for valid entries
-USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
-EMAIL_RE = re.compile(r"^[\S]+@[\S]+.[\S]+$")
-PASS_RE = re.compile(r"^.{3,20}$")
-Secret_Hmac = 'JustPassword'
 
 
 def salty_password(name, password, salt=None):
+    """
+    We like salty food, but the bad guys don't like salty passwords
+    so we add the salt to our password just like we do with our jerky,
+    by using unique name, unique salt, and presumely unquie password,
+    and mix it up with nice sha256 hasher
+    """
     if not salt:
         salt = ''.join(random.choice(letters)for z in xrange(5))
     salting = hashlib.sha256(name+password+salt).hexdigest()
@@ -30,63 +32,51 @@ def salty_password(name, password, salt=None):
 
 # Making sure the hash browns are properly salted...
 def tasting_salt(name, password, hashedpassword):
+    """
+    This function tests whether the password and username is properly salted.
+    In other words, this fxn is used to verify the password as we do not store
+    the actual passwords, but the hashes themselves, so we have to recreate the
+    salted hashes when the user login with their password.
+    """
     taste = hashedpassword.split('|')[0]
     return salty_password(name, password, taste) == hashedpassword
 
 
-# database for users
-class User(db.Model):
-    user_name = db.StringProperty(required=True)
-    user_hashed_password = db.StringProperty(required=True)
-    user_email = db.StringProperty()
-
-
-# The Blog! database
-class Blog(db.Model):
-    subject = db.StringProperty(required=True)
-    content = db.TextProperty(required=True)
-    created = db.DateTimeProperty(auto_now_add=True)
-    owner = db.StringProperty(required=True)
-    likedby = db.ListProperty(str, default=[])
-    comments = db.TextProperty()
-    likes = db.IntegerProperty()
-
-
-class Comments(db.Model):
-    comment = db.TextProperty(required=True)
-    owner = db.StringProperty(required=True)
-    blogID = db.IntegerProperty(required=True)
-
-
-def user_query(user):
-    # return db.GqlQuery("Select * From User where user_name = '%s'" % user)
-    users = User.all()
-    return users.filter('user_name =', user)
-
-
 def hmac_str(s):
+    Secret_Hmac = 'JustPassword'  # Yes, this is a bad practice.
     return '%s|%s' % (s, hmac.new(Secret_Hmac, s).hexdigest())
 
 
-def check_hmac(s):
-    val = s.split('|')[0]
-    if s == hmac_str(val):
-        return val
+def user_check(self, *args, **kwargs):
+    user = self.request.cookies.get('username')
+    username = user.split('|')[0]
+    if user == hmac_str(username):
+        return username
+    else:
+        return False
 
 
 def valid_username(username):
+    USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
     return USER_RE.match(username)
 
 
 def valid_email(email):
+    EMAIL_RE = re.compile(r"^[\S]+@[\S]+.[\S]+$")
     return EMAIL_RE.match(email) or not email
 
 
 def valid_password(password):
+    PASS_RE = re.compile(r"^.{3,20}$")
     return PASS_RE.match(password)
 
 
 class Handler(webapp2.RequestHandler):
+    """
+    Designed to handle low level operations for writing,
+    rendering and simplifying the process of creating
+    readable website using templates and transistions.
+    """
     def write(self, *a, **kw):
         self.response.out.write(*a, **kw)
 
@@ -99,16 +89,21 @@ class Handler(webapp2.RequestHandler):
 
 
 class MainPage(Handler):
+    """
+    A main page which is designed to handle all of the website relating
+    to the blogging, control the access, and show specific properities
+    according to each permissions
+    """
 
     def get(self):
-        user = self.request.cookies.get('username')
-        if user:
-            username = user.split('|')[0]
+        message = self.request.get('message')
+        username = user_check(self)
+        if username:
             blogs = Blog.all()
             blog_comments = Comments.all()
             self.render("base.html", user=username, blogs=blogs,
-                        blog_comments=blog_comments)
-        if not user:
+                        blog_comments=blog_comments, message=message)
+        if not username:
             self.render("base.html")
 
     def post(self):
@@ -157,15 +152,19 @@ class MainPage(Handler):
 
 
 class Login(MainPage):
+    """
+    Class Login is to handle all the login procedure for users
+    processing by checking the username and the password against the
+    database we have
+    """
 
     def get(self):
-        self.render("login.html")
+        self.redirect('/')
 
     def post(self):
         username = self.request.get("username")
         password = self.request.get("password")
-
-        q = user_query(username)
+        q = User.all().filter('user_name =', username)
         if q.get():
             if q.get().user_name == username:
                 hashedpassword = User.all().filter('user_name =', username).get().user_hashed_password  # noqa
@@ -185,189 +184,230 @@ class Login(MainPage):
 
 
 class Logout(Handler):
+    """
+    This class is designed to handle both basic logout
+    and error handling in relation to cookie corruption to
+    which it resets to nothing and return to login page.
+    """
     def get(self):
-        user = self.request.cookies.get('username')
-        if not user:
-            self.redirect('/')
-        else:
-            self.response.headers['Content-Type'] = 'text/plain'
-            self.response.headers.add_header(
+        self.response.headers['Content-Type'] = 'text/plain'
+        self.response.headers.add_header(
                                         'Set-Cookie',
                                         'username =; Path=/')
-            self.redirect('/')
+        self.redirect('/')
 
 
 class NewPost(Handler):
+    """ A class to handle creation of a new post on blog """
     def get(self):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        self.render('newpost.html', user=username)
+        # user = self.request.cookies.get('username')
+        # username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            self.render('newpost.html', user=username)
+        if not username:
+            self.redirect('/logout')
 
     def post(self):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        subject = self.request.get("subject")
-        content = self.request.get("content")
-        if content and subject:
-            blog = Blog(subject=subject, content=content, owner=username)
-            blog.put()
-            self.redirect('/%s' % str(blog.key().id()))
+        # user = self.request.cookies.get('username')
+        # username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            subject = self.request.get("subject")
+            content = self.request.get("content")
+            if content and subject:
+                blog = Blog(subject=subject, content=content, owner=username)
+                blog.put()
+                self.redirect('/%s' % str(blog.key().id()))
+            else:
+                error = 'The subject and content is required for submission'
+                self.render('newpost.html', subject=subject, content=content,
+                            error=error)
         else:
-            error = 'The subject and content is required for submission'
-            self.render('newpost.html', subject=subject, content=content,
-                        error=error)
-
+            self.redirect('/logout')
 
 class PostPost(Handler):
     def get(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        key = db.Key.from_path('Blog', int(blog_id))
-        blog = db.get(key)
+        # user = self.request.cookies.get('username')
+        # username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            key = db.Key.from_path('Blog', int(blog_id))
+            blog = db.get(key)
 
-        if not blog:
-            self.error(404)
-            return
+            if not blog:
+                self.error(404)
+                return
 
-        self.render("permalink.html", blog=blog, user=username)
+            self.render("permalink.html", blog=blog, user=username)
+        else:
+            self.redirect('/logout')
 
 
 class DeletePost(Handler):
     def get(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        key = db.Key.from_path('Blog', int(blog_id))
-        blog = db.get(key)
-
-        if not blog:
-            self.error(404)
-            return
-
-        thispost = Blog.get_by_id(int(blog_id))
-        if thispost.owner == username:
-            thispost.delete()
-            self.write('success!')
+        username = user_check(self)
+        if username:
+            thispost = Blog.get_by_id(int(blog_id))
+            if thispost is not None:
+                if thispost.owner == username:
+                    thispost.delete()
+                    time.sleep(0.1)
+                    self.redirect('/?message= Successful Deletion!')
+                else:
+                    self.redirect('/')
         else:
-            self.redirect('/')
+            self.redirect('/logout')
 
 
 class EditPost(Handler):
     def get(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        thispost = Blog.get_by_id(int(blog_id))
-        if thispost.owner == username:
-            self.render('editpost.html', post=thispost, user=username)
+        username = user_check(self)
+        if username:
+            thispost = Blog.get_by_id(int(blog_id))
+            if thispost is not None:
+                if thispost.owner == username:
+                    self.render('editpost.html', post=thispost, user=username)
+                else:
+                    self.redirect('/')
         else:
-            self.redirect('/')
+            self.redirect('/logout')
 
     def post(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        subject = self.request.get("subject")
-        content = self.request.get("content")
-        thispost = Blog.get_by_id(int(blog_id))
-
-        if content and subject:
-            thispost.subject = subject
-            thispost.content = content
-            thispost.put()
-            self.redirect('/%s' % str(thispost.key().id()))
-        else:
-            error = 'The subject and content is required for submission'
-            if thispost.owner == username:
-                self.render('editpost.html', post=thispost, user=username,
-                            error=error)
+        username = user_check(self)
+        if username:
+            subject = self.request.get("subject")
+            content = self.request.get("content")
+            thispost = Blog.get_by_id(int(blog_id))
+            if thispost is not None:   # just making sure it exists
+                if content and subject:
+                    thispost.subject = subject
+                    thispost.content = content
+                    thispost.put()
+                    self.redirect('/%s' % str(thispost.key().id()))
+                else:
+                    error = 'The subject and content is required for submission'
+                    if thispost.owner == username:
+                        self.render('editpost.html', post=thispost, user=username,
+                                    error=error)
+                    else:
+                        self.redirect('/')
             else:
                 self.redirect('/')
+        else:
+            self.redirect('/logout')
 
 
 class LikePost(Handler):
     def get(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        thispost = Blog.get_by_id(int(blog_id))
-        if username != thispost.owner:
-            if username in thispost.likedby:
-                self.redirect('/')
+        username = user_check(self)
+        if username:
+            thispost = Blog.get_by_id(int(blog_id))
+            if thispost is not None:
+                if username != thispost.owner:
+                    if username in thispost.likedby:
+                        self.redirect('/')
+                    else:
+                        thispost.likedby.append(username)
+                        if thispost.likes:
+                            thispost.likes += 1
+                        else:
+                            thispost.likes = 1
+                        thispost.put()
+                        time.sleep(0.1)
+                        self.redirect('/')
             else:
-                thispost.likedby.append(username)
-                if thispost.likes:
-                    thispost.likes += 1
-                else:
-                    thispost.likes = 1
-                thispost.put()
-                time.sleep(0.1)
                 self.redirect('/')
         else:
-            self.redirect('/')
-
+            self.redirect('/logout')
 
 class CommentPost(Handler):
     def get(self, blog_id):
-        # user = self.request.cookies.get('username')
-        # username = user.split('|')[0]
-        self.render('comment.html')
+        username = user_check(self)
+        if username:
+            self.render('comment.html', user=username)
+        else:
+            self.redirect('/logout')
 
     def post(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        content = self.request.get("content")
+        # user = self.request.cookies.get('username')
+        # username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            content = self.request.get("content")
 
-        if content:
-            comment = Comments(comment=content, owner=username,
-                               blogID=int(blog_id))
-            comment.put()
-            time.sleep(0.1)
-            self.redirect('/')
+            if content:
+                comment = Comments(comment=content, owner=username,
+                                   blogID=int(blog_id))
+                comment.put()
+                time.sleep(0.1)
+                self.redirect('/')
 
+            else:
+                error = 'The content is required for submission'
+                self.render('comment.html', user=username,
+                            error=error)
         else:
-            error = 'The content is required for submission'
-            self.render('comment.html',
-                        error=error)
+            self.redirect('/logout')
 
 
 class DeleteComment(Handler):
     def get(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        thispost = Comments.get_by_id(int(blog_id))
-        if thispost.owner == username:
-            thispost.delete()
-            self.write('success!')
+        # user = self.request.cookies.get('username')
+        # username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            thiscomment = Comments.get_by_id(int(blog_id))
+            if thiscomment is not None:
+                if thiscomment.owner == username:
+                    thiscomment.delete()
+                    time.sleep(0.1)
+                    self.redirect('/?message= Successful Deletion!')
+                else:
+                    self.redirect('/')
         else:
-            self.redirect('/')
+            self.redirect('/logout')
 
 
 class EditComment(Handler):
     def get(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        thispost = Comments.get_by_id(int(blog_id))
-        if thispost.owner == username:
-            self.render('comment.html', content=thispost.comment,
-                        user=username)
+        # user = self.request.cookies.get('username')
+        # username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            thiscomment = Comments.get_by_id(int(blog_id))
+            if thiscomment is not None:
+                if thiscomment.owner == username:
+                    self.render('comment.html', content=thiscomment.comment,
+                                user=username)
+                else:
+                    self.redirect('/')
         else:
-            self.redirect('/')
+            self.redirect('/logout')
 
     def post(self, blog_id):
-        user = self.request.cookies.get('username')
-        username = user.split('|')[0]
-        content = self.request.get("content")
-        thiscomment = Comments.get_by_id(int(blog_id))
-
-        if content:
-            thiscomment.comment = content
-            thiscomment.put()
-            time.sleep(0.1)
-            self.redirect('/')
+        #user = self.request.cookies.get('username')
+        #username = user.split('|')[0]
+        username = user_check(self)
+        if username:
+            content = self.request.get("content")
+            thiscomment = Comments.get_by_id(int(blog_id))
+            if thiscomment is not None:
+                if thiscomment.owner == username:
+                    if content:
+                        thiscomment.comment = content
+                        thiscomment.put()
+                        time.sleep(0.1)
+                        self.redirect('/')
+                    else:
+                        error = 'The content is required for submission'
+                        if thiscomment.owner == username:
+                            self.render('comment.html',
+                                        error=error, user=username)
+                        else:
+                            self.redirect('/')
         else:
-            error = 'The content is required for submission'
-            if thiscomment.owner == username:
-                self.render('comment.html',
-                            error=error)
-            else:
-                self.redirect('/')
+            self.redirect('/logout')
 
 
 app = webapp2.WSGIApplication([('/', MainPage),

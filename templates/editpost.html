@@ -1,6 +1,10 @@
 {% extends "base.html" %}
-
 {% block content %}
+
+<head>
+  <title> Edit my Post </title>
+</head>
+<body>
 <br>
 <br>
 <form method = "post">
@@ -24,4 +28,7 @@ Body
 <input type = "submit">
 </form>
 {{error}}
+<br>
+<a class ='btn btn-danger' href="/"> NeverMind! </a>
+<body>
 {% endblock %}

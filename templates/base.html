@@ -18,6 +18,7 @@
         <header class="row">
             <div class="col-md-8">
                 <h1> Welcome to the Multi-User Blog Site!</h1>
+                <h2> {{message}}</h2>
             </div>
             {% if user %}
             <div class="col-md-2">
@@ -46,6 +47,7 @@
         <div class="error">
             {{error}}
         </div>
+        <br>
         <form method="post" action="/login">
             <label>
       Please enter your username
