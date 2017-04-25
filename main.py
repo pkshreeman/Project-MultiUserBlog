@@ -49,9 +49,10 @@ def hmac_str(s):
 
 def user_check(self, *args, **kwargs):
     user = self.request.cookies.get('username')
-    username = user.split('|')[0]
-    if user == hmac_str(username):
-        return username
+    if user:
+        username = user.split('|')[0]
+        if user == hmac_str(username):
+            return username
     else:
         return False
 
@@ -77,6 +78,7 @@ class Handler(webapp2.RequestHandler):
     rendering and simplifying the process of creating
     readable website using templates and transistions.
     """
+
     def write(self, *a, **kw):
         self.response.out.write(*a, **kw)
 
